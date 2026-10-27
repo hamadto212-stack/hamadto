@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#102a43">
+  <title>Hamadto AI | الوكيل الذكي</title>
+  <style>
+    :root { color-scheme: light; --navy:#102a43; --blue:#1677ff; --bg:#f3f6fa; --ink:#172b4d; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:system-ui,-apple-system,"Segoe UI",Tahoma,Arial,sans-serif; background:var(--bg); color:var(--ink); }
+    header { background:linear-gradient(135deg,#102a43,#176b87); color:white; padding:22px 16px; text-align:center; }
+    header h1 { margin:0 0 6px; font-size:clamp(1.5rem,5vw,2rem); }
+    header p { margin:0; opacity:.9; }
+    main { width:min(900px,100%); margin:18px auto; padding:0 12px; }
+    .panel { background:#fff; border-radius:18px; box-shadow:0 8px 28px #102a4312; overflow:hidden; }
+    .status { padding:12px 16px; font-size:.9rem; background:#eef6ff; border-bottom:1px solid #e3edf7; }
+    #messages { min-height:48vh; max-height:60vh; overflow:auto; padding:16px; display:flex; flex-direction:column; gap:12px; }
+    .msg { max-width:88%; white-space:pre-wrap; overflow-wrap:anywhere; padding:12px 14px; border-radius:16px; line-height:1.65; }
+    .user { align-self:flex-start; background:#e3efff; border-bottom-left-radius:4px; }
+    .assistant { align-self:flex-end; background:#f0f3f6; border-bottom-right-radius:4px; }
+    .composer { border-top:1px solid #e6edf3; padding:12px; display:flex; gap:8px; }
+    textarea { flex:1; resize:vertical; min-height:48px; max-height:150px; border:1px solid #cbd7e3; border-radius:12px; padding:12px; font:inherit; outline-color:var(--blue); }
+    button { border:0; border-radius:12px; background:var(--blue); color:white; padding:0 18px; font:inherit; font-weight:700; cursor:pointer; }
+    button:disabled { opacity:.55; cursor:wait; }
+    .foot { color:#64748b; font-size:.82rem; text-align:center; padding:12px; }
+    .actions { display:flex; gap:8px; justify-content:center; padding:0 12px 14px; }
+    .secondary { background:#e8eef5; color:#17324d; padding:9px 13px; }
+    @media(max-width:520px) { #messages { min-height:52vh; } .msg { max-width:96%; } .composer { gap:6px; } button { padding:0 13px; } }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Hamadto AI</h1>
+    <p>وكيلك الذكي — واجهة عربية قابلة للتطوير</p>
+  </header>
+  <main>
+    <section class="panel" aria-label="محادثة الوكيل">
+      <div class="status" id="status">الواجهة جاهزة. بعد نشر الواجهة وربط خدمة الذكاء الاصطناعي سيعمل الرد الذكي.</div>
+      <div id="messages" aria-live="polite">
+        <div class="msg assistant">مرحباً! أنا Hamadto AI. اكتب طلبك هنا. حالياً هذه واجهة المحادثة؛ يلزم نشر خدمة Worker وربطها بنموذج ذكاء اصطناعي لتفعيل الردود الفعلية.</div>
+      </div>
+      <form class="composer" id="chatForm">
+        <textarea id="prompt" placeholder="اكتب رسالتك هنا..." aria-label="رسالتك" required></textarea>
+        <button id="send" type="submit">إرسال</button>
+      </form>
+      <div class="actions"><button class="secondary" type="button" id="clear">مسح المحادثة</button></div>
+    </section>
+    <p class="foot">نسخة أولية — لا تضع كلمات مرور أو مفاتيح API داخل هذه الصفحة.</p>
+  </main>
+<script>
+const form = document.getElementById('chatForm');
+const promptBox = document.getElementById('prompt');
+const messages = document.getElementById('messages');
+const send = document.getElementById('send');
+const statusBox = document.getElementById('status');
+const history = [];
+
+function addMessage(text, role) {
+  const el = document.createElement('div');
+  el.className = 'msg ' + role;
+  el.textContent = text;
+  messages.appendChild(el);
+  messages.scrollTop = messages.scrollHeight;
+}
+document.getElementById('clear').addEventListener('click', () => {
+  messages.replaceChildren();
+  history.length = 0;
+  addMessage('تم مسح المحادثة. كيف أساعدك؟', 'assistant');
+});
+form.addEventListener('submit', async (event) => {
+  event.preventDefault();
+  const text = promptBox.value.trim();
+  if (!text) return;
+  addMessage(text, 'user');
+  history.push({ role: 'user', content: text });
+  promptBox.value = '';
+  send.disabled = true;
+  statusBox.textContent = 'جارٍ الاتصال بخدمة الذكاء الاصطناعي...';
+  try {
+    const response = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: history })
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || 'خدمة الوكيل غير مفعّلة أو تعذر الاتصال بها.');
+    const answer = data.response || data.reply || data.text || 'وصل رد فارغ من الخدمة.';
+    addMessage(answer, 'assistant');
+    history.push({ role: 'assistant', content: answer });
+    statusBox.textContent = 'متصل بالخدمة.';
+  } catch (error) {
+    addMessage('لم يصل الرد: ' + error.message + '\\n\\nتأكد من نشر worker.js وربط المسار /api/chat. راجع README_AR.txt.', 'assistant');
+    statusBox.textContent = 'الخدمة تحتاج إلى إعداد.';
+  } finally {
+    send.disabled = false;
+    promptBox.focus();
+  }
+});
+promptBox.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); }
+});
+</script>
+</body>
+</html>
